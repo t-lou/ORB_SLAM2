@@ -11,4 +11,7 @@ RUN cd /opt && git clone https://github.com/stevenlovegrove/Pangolin.git && \
 RUN cd /opt && git clone https://github.com/t-lou/ORB_SLAM2.git && cd ORB_SLAM2 && \
     git checkout ubuntu20 && chmod +x build.sh && ./build.sh
 
-RUN useradd -m usr && echo "usr:usr" | chpasswd && usermod -aG sudo usr
+RUN useradd -m usr && echo "usr:usr" | chpasswd && usermod -aG sudo usr && \
+    runuser -l usr -c "echo \"if [[ -d '/home/usr/proj' ]] ; then cd ~/proj ; else cd ~; fi\" > /home/usr/.bashrc"
+
+RUN apt install -y libboost-dev libyaml-cpp-dev
