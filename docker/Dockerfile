@@ -6,7 +6,7 @@ RUN apt update && apt upgrade -y && \
 
 RUN cd /opt && git clone https://github.com/stevenlovegrove/Pangolin.git && \
     cd Pangolin && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build . -j$(nproc)
+    make -j && make install
 
 RUN cd /opt && git clone https://github.com/t-lou/ORB_SLAM2.git && cd ORB_SLAM2 && \
     git checkout ubuntu20 && chmod +x build.sh && ./build.sh
