@@ -133,7 +133,7 @@ class PnPsolver {
   int number_of_correspondences;
 
   double cws[4][3], ccs[4][3];
-  double cws_determinant;
+  // double cws_determinant;
 
   vector<MapPoint*> mvpMapPointMatches;
 
@@ -184,7 +184,7 @@ class PnPsolver {
   float mRansacEpsilon;
 
   // RANSAC Threshold inlier/outlier. Max error e = dist(P1,T_12*P2)^2
-  float mRansacTh;
+  // float mRansacTh;
 
   // RANSAC Minimun Set used at each iteration
   int mRansacMinSet;
