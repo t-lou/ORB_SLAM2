@@ -56,10 +56,8 @@ namespace g2o {
       typedef typename BaseEdge<D,E>::ErrorVector ErrorVector;
       typedef typename BaseEdge<D,E>::InformationType InformationType;
 
-      typedef Eigen::Map<Eigen::Matrix<double, Di, Dj, Di==1?Eigen::RowMajor:Eigen::ColMajor>,
-                         Eigen::Matrix<double, Di, Dj, Di==1?Eigen::RowMajor:Eigen::ColMajor>::Flags & Eigen::PacketAccessBit ? Eigen::Aligned : Eigen::Unaligned > HessianBlockType;
-      typedef Eigen::Map<Eigen::Matrix<double, Dj, Di, Dj==1?Eigen::RowMajor:Eigen::ColMajor>,
-                         Eigen::Matrix<double, Dj, Di, Dj==1?Eigen::RowMajor:Eigen::ColMajor>::Flags & Eigen::PacketAccessBit ? Eigen::Aligned : Eigen::Unaligned > HessianBlockTransposedType;
+      typedef Eigen::Map<Matrix<double, Di, Dj>, Matrix<double, Di, Dj>::Flags & PacketAccessBit ? Aligned : Unaligned > HessianBlockType;
+      typedef Eigen::Map<Matrix<double, Dj, Di>, Matrix<double, Dj, Di>::Flags & PacketAccessBit ? Aligned : Unaligned > HessianBlockTransposedType;
 
       BaseBinaryEdge() : BaseEdge<D,E>(),
       _hessianRowMajor(false),
