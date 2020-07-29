@@ -62,56 +62,53 @@ public:
 
     ~LoopClosing()
     {
-        std::unordered_set<long unsigned int> visited;
-        YAML::Node node;
-        auto visit = [&visited, &node](KeyFrame* frame) -> void
+        YAML::Node root;
+        auto visit = [&root](KeyFrame* frame) -> void
         {
-            if (frame != nullptr && visited.find(frame->mnId) == visited.end())
+            cv::Mat tf = frame->GetPose();
+            std::vector<float> tf_vec(7);
+            tf_vec[0] = tf.at<float>(0, 3);
+            tf_vec[1] = tf.at<float>(1, 3);
+            tf_vec[2] = tf.at<float>(2, 3);
+            Eigen::Matrix3f rot;
+            for (int i = 0; i < 3; ++i)
             {
-                visited.insert(frame->mnId);
-
-                cv::Mat tf = frame->GetPose();
-                std::vector<float> tf_vec(7);
-                tf_vec[0] = tf.at<float>(0, 3);
-                tf_vec[1] = tf.at<float>(1, 3);
-                tf_vec[2] = tf.at<float>(2, 3);
-                Eigen::Matrix3f rot;
-                for (int i = 0; i < 3; ++i)
+                for (int j = 0; j < 3; ++j)
                 {
-                    for (int j = 0; j < 3; ++j)
-                    {
-                        rot(i, j) = tf.at<float>(i, j);
-                    }
+                    rot(i, j) = tf.at<float>(i, j);
                 }
-                Eigen::Quaternionf q(rot);
-                tf_vec[3] = q.x();
-                tf_vec[4] = q.y();
-                tf_vec[5] = q.z();
-                tf_vec[6] = q.w();
+            }
+            Eigen::Quaternionf q(rot);
+            tf_vec[3] = q.x();
+            tf_vec[4] = q.y();
+            tf_vec[5] = q.z();
+            tf_vec[6] = q.w();
 
-                bool changed = false;
-                YAML::Node point_node;
+            bool changed = false;
+            YAML::Node point_node;
 
-                for (auto point: frame->GetMapPointMatches())
+            for (auto point: frame->GetMapPointMatches())
+            {
+                if (point != nullptr)
                 {
-                    if (point != nullptr)
-                    {
-                        cv::Mat pos = point->GetWorldPos();
-                        point_node[point->mnId] = std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)};
-                        changed = true;
-                    }
+                    cv::Mat pos = point->GetWorldPos();
+                    point_node[point->mnId] = std::vector<float>{
+                        pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)};
+                    changed = true;
                 }
-                if (changed)
-                {
-                    YAML::Node frame_node;
-                    frame_node["tf"] = tf_vec;
-                    frame_node["pt"] = point_node;
-                    node[frame->mnId] = frame_node;
-                }
+            }
+            if (changed)
+            {
+                YAML::Node frame_node;
+                frame_node["tf"] = tf_vec;
+                frame_node["pt"] = point_node;
+                root[frame->mnId] = frame_node;
             }
         };
 
+        std::unordered_set<decltype(KeyFrame::mnId)> visited;
         std::queue<KeyFrame*> to_visit;
+        visited.insert(mpCurrentKF->mnId);
         to_visit.push(mpCurrentKF);
 
         while (!to_visit.empty())
@@ -119,8 +116,15 @@ public:
             std::queue<KeyFrame*> next;
             while (!to_visit.empty())
             {
-                const std::vector<KeyFrame*>& connected = to_visit.front()->GetVectorCovisibleKeyFrames();
-                std::for_each(connected.begin(), connected.end(), visit);
+                visit(to_visit.front());
+                for (KeyFrame* frame: to_visit.front()->GetVectorCovisibleKeyFrames())
+                {
+                    if (frame != nullptr && visited.find(frame->mnId) == visited.end())
+                    {
+                        visited.insert(frame->mnId);
+                        next.push(frame);
+                    }
+                }
                 to_visit.pop();
             }
             to_visit = next;
@@ -128,7 +132,7 @@ public:
 
         std::ofstream o("/tmp/observations.yaml");
         o.precision(std::numeric_limits<float>::max_digits10);
-        o << node;
+        o << root;
     }
 
     void SetTracker(Tracking* pTracker);
