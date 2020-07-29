@@ -32,6 +32,7 @@
 #include <thread>
 #include <mutex>
 #include <unordered_set>
+#include <unordered_map>
 #include <queue>
 #include <fstream>
 #include <limits>
@@ -62,14 +63,47 @@ public:
 
     ~LoopClosing()
     {
-        YAML::Node root;
-        auto visit = [&root](KeyFrame* frame) -> void
+        using type_kf_id = decltype(KeyFrame::mnId);
+        using type_pt_id = decltype(KeyFrame::mnId);
+        struct KfInfo
         {
+            std::string name;
+            std::vector<float> tf;
+            std::unordered_map<type_pt_id, std::pair<float, float>> points;
+        };
+        struct PtInto
+        {
+            std::vector<float> pos;
+            std::queue<type_kf_id> seen_in;
+        };
+        struct Intr
+        {
+            float fx = -1.0f;
+            float fy = -1.0f;
+            float cx = -1.0f;
+            float cy = -1.0f;
+        } intr;
+
+        std::unordered_map<type_kf_id, KfInfo> kfs;
+        std::unordered_map<type_pt_id, PtInto> pts;
+
+        auto visit = [&kfs,&pts,&intr](KeyFrame* frame) -> void
+        {
+            if (kfs.find(frame->mnId) != kfs.end())
+            {
+                std::cout << "frame with id " << frame->mnId << std::endl;
+                return;
+            }
+
+            KfInfo kf_info;
+
+            kf_info.name = frame->GetName();
+
+            kf_info.tf.resize(7);
             cv::Mat tf = frame->GetPose();
-            std::vector<float> tf_vec(7);
-            tf_vec[0] = tf.at<float>(0, 3);
-            tf_vec[1] = tf.at<float>(1, 3);
-            tf_vec[2] = tf.at<float>(2, 3);
+            kf_info.tf[0] = tf.at<float>(0, 3);
+            kf_info.tf[1] = tf.at<float>(1, 3);
+            kf_info.tf[2] = tf.at<float>(2, 3);
             Eigen::Matrix3f rot;
             for (int i = 0; i < 3; ++i)
             {
@@ -79,34 +113,40 @@ public:
                 }
             }
             Eigen::Quaternionf q(rot);
-            tf_vec[3] = q.x();
-            tf_vec[4] = q.y();
-            tf_vec[5] = q.z();
-            tf_vec[6] = q.w();
+            kf_info.tf[3] = q.x();
+            kf_info.tf[4] = q.y();
+            kf_info.tf[5] = q.z();
+            kf_info.tf[6] = q.w();
 
-            bool changed = false;
-            YAML::Node point_node;
-
-            for (auto point: frame->GetMapPointMatches())
+            const std::vector<MapPoint*> pts_3d = frame->GetMapPointMatches();
+            const std::vector<cv::KeyPoint> &pts_2d = frame->mvKeysUn;
+            for (std::size_t i = 0u; i < pts_3d.size(); ++i)
             {
-                if (point != nullptr)
+                if (pts_3d[i] != nullptr)
                 {
-                    cv::Mat pos = point->GetWorldPos();
-                    point_node[point->mnId] = std::vector<float>{
-                        pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)};
-                    changed = true;
+                    if (pts.find(pts_3d[i]->mnId) == pts.end())
+                    {
+                        cv::Mat pos = pts_3d[i]->GetWorldPos();
+                        pts[pts_3d[i]->mnId] = PtInto{std::vector<float>{
+                            pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)}};
+                    }
+                    pts[pts_3d[i]->mnId].seen_in.push(frame->mnId);
+                    kf_info.points[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d[i].pt.x, pts_2d[i].pt.y);
                 }
             }
-            if (changed)
+
+            kfs[frame->mnId] = kf_info;
+
+            if (intr.fx < 0.0f)
             {
-                YAML::Node frame_node;
-                frame_node["tf"] = tf_vec;
-                frame_node["pt"] = point_node;
-                root[frame->mnId] = frame_node;
+                intr.fx = frame->fx;
+                intr.fy = frame->fy;
+                intr.cx = frame->cx;
+                intr.cy = frame->cy;
             }
         };
 
-        std::unordered_set<decltype(KeyFrame::mnId)> visited;
+        std::unordered_set<type_kf_id> visited;
         std::queue<KeyFrame*> to_visit;
         visited.insert(mpCurrentKF->mnId);
         to_visit.push(mpCurrentKF);
@@ -130,9 +170,35 @@ public:
             to_visit = next;
         }
 
-        std::ofstream o("/tmp/observations.yaml");
-        o.precision(std::numeric_limits<float>::max_digits10);
-        o << root;
+        YAML::Node root;
+        for (const auto& kf: kfs)
+        {
+            root["key_frame"][kf.first]["name"] = kf.second.name;
+            root["key_frame"][kf.first]["tf"] = kf.second.tf;
+            for (const auto& pt : kf.second.points)
+            {
+                root["key_frame"][kf.first]["has"][pt.first] = std::vector<float>{
+                    pt.second.first, pt.second.second};
+            }
+        }
+        for (auto& point: pts)
+        {
+            root["mark"][point.first]["pos"] = point.second.pos;
+            while (!point.second.seen_in.empty())
+            {
+                root["mark"][point.first]["in"].push_back(point.second.seen_in.front());
+                point.second.seen_in.pop();
+            }
+        }
+
+        root["intrinsics"]["fx"] = intr.fx;
+        root["intrinsics"]["fy"] = intr.fy;
+        root["intrinsics"]["cx"] = intr.cx;
+        root["intrinsics"]["cy"] = intr.cy;
+
+        std::ofstream out("/tmp/observations.yaml");
+        out.precision(std::numeric_limits<float>::max_digits10);
+        out << root;
     }
 
     void SetTracker(Tracking* pTracker);

@@ -83,6 +83,7 @@ int main(int argc, char **argv)
 #endif
 
         // Pass the image to the SLAM system
+        SLAM.DefineFrameName(vstrImageFilenames[ni]);
         SLAM.TrackMonocular(im,tframe);
 
 #ifdef COMPILEDWITHC14

@@ -98,6 +98,9 @@ public:
     // Backprojects a keypoint (if stereo/depth info available) into 3D world coordinates.
     cv::Mat UnprojectStereo(const int &i);
 
+    void SetName(const std::string& name) { msName = name; }
+    std::string GetName() const { return msName; }
+
 public:
     // Vocabulary used for relocalization.
     ORBVocabulary* mpORBvocabulary;
@@ -206,6 +209,7 @@ private:
     cv::Mat mtcw;
     cv::Mat mRwc;
     cv::Mat mOw; //==mtwc
+    std::string msName;
 };
 
 }// namespace ORB_SLAM

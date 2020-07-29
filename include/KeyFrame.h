@@ -116,6 +116,7 @@ public:
         return pKF1->mnId<pKF2->mnId;
     }
 
+    std::string GetName() const { return msName; }
 
     // The following variables are accesed from only 1 thread or never change (no mutex needed).
 public:
@@ -231,6 +232,8 @@ protected:
     std::mutex mMutexPose;
     std::mutex mMutexConnections;
     std::mutex mMutexFeatures;
+
+    std::string msName;
 };
 
 } //namespace ORB_SLAM

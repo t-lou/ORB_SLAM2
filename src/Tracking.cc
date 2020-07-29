@@ -260,6 +260,7 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
     else
         mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
 
+    mCurrentFrame.SetName(msNextFrameName);
     Track();
 
     return mCurrentFrame.mTcw.clone();

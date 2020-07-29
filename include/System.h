@@ -125,6 +125,8 @@ public:
     std::vector<MapPoint*> GetTrackedMapPoints();
     std::vector<cv::KeyPoint> GetTrackedKeyPointsUn();
 
+    void DefineFrameName(const std::string& name) { msNextFrameName = name; }
+
 private:
 
     // Input sensor
@@ -177,6 +179,8 @@ private:
     std::vector<MapPoint*> mTrackedMapPoints;
     std::vector<cv::KeyPoint> mTrackedKeyPointsUn;
     std::mutex mMutexState;
+
+    std::string msNextFrameName;
 };
 
 }// namespace ORB_SLAM
