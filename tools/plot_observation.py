@@ -15,7 +15,8 @@ if not os.path.isfile(FN):
 DATA = yaml.safe_load(open(FN))
 
 # landmarks which show in more than MIN_OCCUR frames
-shared_marks = set(i_pt for i_pt in DATA["mark"] if len(DATA["mark"][i_pt]["in"]) > MIN_OCCUR)
+shared_marks = set(i_pt for i_pt in DATA["mark"]
+                   if len(DATA["mark"][i_pt]["in"]) > MIN_OCCUR)
 
 for i_kf in DATA["key_frame"]:
     pos1 = DATA["key_frame"][i_kf]["tf"][:2]
