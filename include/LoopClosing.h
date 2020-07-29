@@ -31,7 +31,14 @@
 
 #include <thread>
 #include <mutex>
+#include <unordered_set>
+#include <queue>
+#include <fstream>
+#include <limits>
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
+
+#include <yaml-cpp/yaml.h>
+#include <Eigen/Geometry>
 
 namespace ORB_SLAM2
 {
@@ -52,6 +59,77 @@ public:
 public:
 
     LoopClosing(Map* pMap, KeyFrameDatabase* pDB, ORBVocabulary* pVoc,const bool bFixScale);
+
+    ~LoopClosing()
+    {
+        std::unordered_set<long unsigned int> visited;
+        YAML::Node node;
+        auto visit = [&visited, &node](KeyFrame* frame) -> void
+        {
+            if (frame != nullptr && visited.find(frame->mnId) == visited.end())
+            {
+                visited.insert(frame->mnId);
+
+                cv::Mat tf = frame->GetPose();
+                std::vector<float> tf_vec(7);
+                tf_vec[0] = tf.at<float>(0, 3);
+                tf_vec[1] = tf.at<float>(1, 3);
+                tf_vec[2] = tf.at<float>(2, 3);
+                Eigen::Matrix3f rot;
+                for (int i = 0; i < 3; ++i)
+                {
+                    for (int j = 0; j < 3; ++j)
+                    {
+                        rot(i, j) = tf.at<float>(i, j);
+                    }
+                }
+                Eigen::Quaternionf q(rot);
+                tf_vec[3] = q.x();
+                tf_vec[4] = q.y();
+                tf_vec[5] = q.z();
+                tf_vec[6] = q.w();
+
+                bool changed = false;
+                YAML::Node point_node;
+
+                for (auto point: frame->GetMapPointMatches())
+                {
+                    if (point != nullptr)
+                    {
+                        cv::Mat pos = point->GetWorldPos();
+                        point_node[point->mnId] = std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)};
+                        changed = true;
+                    }
+                }
+                if (changed)
+                {
+                    YAML::Node frame_node;
+                    frame_node["tf"] = tf_vec;
+                    frame_node["pt"] = point_node;
+                    node[frame->mnId] = frame_node;
+                }
+            }
+        };
+
+        std::queue<KeyFrame*> to_visit;
+        to_visit.push(mpCurrentKF);
+
+        while (!to_visit.empty())
+        {
+            std::queue<KeyFrame*> next;
+            while (!to_visit.empty())
+            {
+                const std::vector<KeyFrame*>& connected = to_visit.front()->GetVectorCovisibleKeyFrames();
+                std::for_each(connected.begin(), connected.end(), visit);
+                to_visit.pop();
+            }
+            to_visit = next;
+        }
+
+        std::ofstream o("/tmp/observations.yaml");
+        o.precision(std::numeric_limits<float>::max_digits10);
+        o << node;
+    }
 
     void SetTracker(Tracking* pTracker);
 
