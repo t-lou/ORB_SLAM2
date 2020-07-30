@@ -1,12 +1,19 @@
 import os
 import sys
+import argparse
 
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import yaml
 
-FN = sys.argv[1]
-OUT = 'observation.mp4'
+parser = argparse.ArgumentParser()
+parser.add_argument('--input', type=str)
+parser.add_argument('--output', type=str, default='observation.mp4')
+
+args = parser.parse_args()
+
+FN = args.input
+OUT = args.output
 
 if not os.path.isfile(FN):
     print(f"{FN} not found")
