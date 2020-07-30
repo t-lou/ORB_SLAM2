@@ -12,7 +12,7 @@ RUN cd /opt && git clone https://github.com/stevenlovegrove/Pangolin.git && \
 RUN cd /opt && git clone https://github.com/t-lou/ORB_SLAM2.git && cd ORB_SLAM2 && \
     chmod +x build.sh && ./build.sh
 
-RUN cd /opt && git clone https://github.com/tum-vision/LDSO.git && cd LDSO && \
+RUN cd /opt && git clone https://github.com/t-lou/LDSO.git && cd LDSO && \
     chmod +x ./make_project.sh && ./make_project.sh
 
 RUN useradd -m usr && echo "usr:usr" | chpasswd && usermod -aG sudo usr && \
