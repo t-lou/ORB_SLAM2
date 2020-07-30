@@ -12,6 +12,9 @@ RUN cd /opt && git clone https://github.com/stevenlovegrove/Pangolin.git && \
 RUN cd /opt && git clone https://github.com/t-lou/ORB_SLAM2.git && cd ORB_SLAM2 && \
     chmod +x build.sh && ./build.sh
 
+RUN cd /opt && git clone https://github.com/tum-vision/LDSO.git && cd LDSO && \
+    chmod +x ./make_project.sh && ./make_project.sh
+
 RUN useradd -m usr && echo "usr:usr" | chpasswd && usermod -aG sudo usr && \
     runuser -l usr -c "echo \"if [[ -d '/home/usr/proj' ]] ; then cd ~/proj ; else cd ~; fi\" >> /home/usr/.bashrc" && \
     runuser -l usr -c "echo \"export CC=/usr/bin/clang\" >> /home/usr/.bashrc" && \
