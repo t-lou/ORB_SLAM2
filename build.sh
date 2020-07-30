@@ -1,32 +1,33 @@
+#!/bin/bash
+
 set -e
+
+REPO=$(dirname $(realpath $0))
 
 echo "Configuring and building Thirdparty/DBoW2 ..."
 
-cd Thirdparty/DBoW2
+cd $REPO/Thirdparty/DBoW2
 mkdir -p build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j
-
-cd ../../g2o
 
 echo "Configuring and building Thirdparty/g2o ..."
 
+cd $REPO/Thirdparty/g2o
 mkdir -p build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
 make -j
 
-cd ../../../
-
 echo "Uncompress vocabulary ..."
 
-cd Vocabulary
+cd $REPO/Vocabulary
 tar -xf ORBvoc.txt.tar.gz
-cd ..
 
 echo "Configuring and building ORB_SLAM2 ..."
 
+cd $REPO
 mkdir -p build
 cd build
 cmake .. -DCMAKE_BUILD_TYPE=Release
