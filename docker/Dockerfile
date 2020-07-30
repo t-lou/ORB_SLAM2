@@ -1,8 +1,9 @@
 FROM ubuntu:20.04
 
-RUN apt update && apt upgrade -y && \
-    DEBIAN_FRONTEND="noninteractive" apt -y install tzdata keyboard-configuration && \
-    apt install -y git cmake libopencv-dev libgl1-mesa-dev libglew-dev sudo clang vim libeigen3-dev libboost-dev libyaml-cpp-dev
+RUN apt-get update && apt-get upgrade -y && \
+    DEBIAN_FRONTEND="noninteractive" apt-get -y install tzdata keyboard-configuration && \
+    apt-get install -y git cmake libopencv-dev libgl1-mesa-dev libglew-dev sudo clang vim libeigen3-dev \
+        libyaml-cpp-dev libgoogle-glog-dev libgtest-dev libsuitesparse-dev libzip-dev libboost-all-dev
 
 RUN cd /opt && git clone https://github.com/stevenlovegrove/Pangolin.git && \
     cd Pangolin && mkdir build && cd build && cmake .. -DCMAKE_BUILD_TYPE=Release && \
@@ -12,4 +13,6 @@ RUN cd /opt && git clone https://github.com/t-lou/ORB_SLAM2.git && cd ORB_SLAM2 
     chmod +x build.sh && ./build.sh
 
 RUN useradd -m usr && echo "usr:usr" | chpasswd && usermod -aG sudo usr && \
-    runuser -l usr -c "echo \"if [[ -d '/home/usr/proj' ]] ; then cd ~/proj ; else cd ~; fi\" >> /home/usr/.bashrc"
+    runuser -l usr -c "echo \"if [[ -d '/home/usr/proj' ]] ; then cd ~/proj ; else cd ~; fi\" >> /home/usr/.bashrc" && \
+    runuser -l usr -c "echo \"export CC=/usr/bin/clang\" >> /home/usr/.bashrc" && \
+    runuser -l usr -c "echo \"export CXX=/usr/bin/clang++\" >> /home/usr/.bashrc"
