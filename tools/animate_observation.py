@@ -1,7 +1,11 @@
 import os
 import sys
 import argparse
+import re
 
+import numpy
+from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Slerp
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import yaml
@@ -9,11 +13,53 @@ import yaml
 parser = argparse.ArgumentParser()
 parser.add_argument('--input', type=str)
 parser.add_argument('--output', type=str, default='observation.mp4')
+parser.add_argument('--gt', type=str)
 
 args = parser.parse_args()
 
 FN = args.input
 OUT = args.output
+GT = args.gt
+
+gt_tf = None
+if GT is not None and os.path.isfile(GT):
+    gt_tf = numpy.genfromtxt(GT, delimiter=" ", skip_header=3)
+
+
+def interp_tf(t0, tf0, t1, tf1, t):
+    assert t0 <= t <= t1, f"time disorder {t0} {t1} {t}"
+    if t0 == t:
+        return tf0
+    elif t1 == t:
+        return tf1
+    else:
+        p = (t - t0) / (t1 - t0)
+        tr = list(
+            map(lambda i: p * i[1] + (1 - p) * i[0],
+                list(zip(tf0, tf1))[:3]))
+        rot = Slerp([t0, t1], R.from_quat([tf0[3:],
+                                           tf1[3:]]))(t).as_quat().tolist()
+        return tr + rot
+    return None
+
+
+def get_gt_tf(timestamp: float):
+    if gt_tf[0, 0] < timestamp < gt_tf[-1, 0]:
+        id_p = numpy.where(gt_tf[:, 0] <= timestamp)[0][-1]
+        id_n = numpy.where(gt_tf[:, 0] >= timestamp)[0][0]
+        return interp_tf(gt_tf[id_p, 0], gt_tf[id_p, 1:], gt_tf[id_n, 0],
+                         gt_tf[id_n, 1:], timestamp)
+    else:
+        return None
+
+
+def get_gt_tf_from_name(name: str):
+    floats = [float(m) for m in re.findall("\d+\.\d+", name)]
+    if len(floats) == 1:
+        return get_gt_tf(floats[0])
+    else:
+        print(f"name {name} should contain one float")
+
 
 if not os.path.isfile(FN):
     print(f"{FN} not found")
@@ -32,7 +78,7 @@ kfs = list(zip(*[(p["tf"][0], p["tf"][1])
                  for p in DATA["key_frame"].values()]))
 
 
-def animate(idx, line):
+def animate(idx, line, gt_line):
     # print(idx, DATA["key_frame"][idx]["name"])
     pos1 = DATA["key_frame"][idx]["tf"][:2]
     pos2 = list(
@@ -52,7 +98,15 @@ def animate(idx, line):
     line.set_ydata(pos_y)
     line.set_color("g")
     line.set_alpha(0.7)
-    return line,
+
+    gt_pos = get_gt_tf_from_name(DATA["key_frame"][idx]["name"])
+    if gt_pos is not None:
+        gt_line.set_xdata(gt_pos[0])
+        gt_line.set_ydata(gt_pos[1])
+        gt_line.set_color("black")
+        gt_line.set_marker("o")
+        gt_line.set_alpha(1.0)
+    return line, gt_line
 
 
 xs = kfs[0] + pts[0]
@@ -68,7 +122,9 @@ plt.gca().set_aspect('equal', 'box')
 plt.plot(pts[0], pts[1], ".r", alpha=0.3)
 plt.plot(kfs[0], kfs[1], ".b", alpha=0.3)
 line, = plt.plot([])
+gt_line, = plt.plot([])
 
 writer = animation.writers['ffmpeg'](fps=2, bitrate=1800)
-animation.FuncAnimation(fig1, animate, (i for i in frames),
-                        fargs=(line, )).save(OUT, writer=writer)
+animation.FuncAnimation(fig1,
+                        animate, (i for i in frames),
+                        fargs=(line, gt_line)).save(OUT, writer=writer)
