@@ -68,14 +68,41 @@ if not os.path.isfile(FN):
 DATA = yaml.safe_load(open(FN))
 
 map_name_id = {
-    DATA["key_frame"][i]["name"]: i
-    for i in DATA["key_frame"].keys()
+    DATA["key_frame"][i]["name"]: i for i in DATA["key_frame"].keys()
 }
-frames = [map_name_id[n] for n in sorted(list(map_name_id.keys()))]
+sorted_frame_name = sorted(list(map_name_id.keys()))
+frames = [map_name_id[n] for n in sorted_frame_name]
+
+# reset the ground truth tf with the first key-frame time
+if gt_tf is not None:
+    matched_gt_tf = None
+    for frame_name in sorted_frame_name:
+        matched_gt_tf = get_gt_tf_from_name(frame_name)
+        if matched_gt_tf is not None:
+            matched_tf = DATA["key_frame"][map_name_id[frame_name]]["tf"]
+            break
+    if matched_gt_tf is None:
+        print("ground truth and key frames not matched in time")
+        sys.exit(1)
+
+    def tf2mat(tf):
+        re = numpy.eye(4)
+        re[0, 3], re[1, 3], re[2, 3] = tf[0], tf[1], tf[2]
+        re[:3, :3] = R.from_quat(tf[3:]).as_matrix()
+        return re
+
+    def mat2tf(mat):
+        tl = [mat[0, 3], mat[1, 3], mat[2, 3]]
+        rot = R.from_matrix(mat[:3, :3]).as_quat().tolist()
+        return tl + rot
+
+    conv = tf2mat(matched_tf) @ numpy.linalg.pinv(tf2mat(matched_gt_tf))
+
+    for i in range(gt_tf.shape[0]):
+        gt_tf[i, 1:] = numpy.array(mat2tf(conv @ tf2mat(gt_tf[i, 1:].tolist())))
 
 pts = list(zip(*[(p["pos"][0], p["pos"][1]) for p in DATA["mark"].values()]))
-kfs = list(zip(*[(p["tf"][0], p["tf"][1])
-                 for p in DATA["key_frame"].values()]))
+kfs = list(zip(*[(p["tf"][0], p["tf"][1]) for p in DATA["key_frame"].values()]))
 
 
 def animate(idx, line, gt_line):
@@ -99,13 +126,14 @@ def animate(idx, line, gt_line):
     line.set_color("g")
     line.set_alpha(0.7)
 
-    gt_pos = get_gt_tf_from_name(DATA["key_frame"][idx]["name"])
-    if gt_pos is not None:
-        gt_line.set_xdata(gt_pos[0])
-        gt_line.set_ydata(gt_pos[1])
-        gt_line.set_color("black")
-        gt_line.set_marker("o")
-        gt_line.set_alpha(1.0)
+    if gt_tf is not None:
+        gt_pos = get_gt_tf_from_name(DATA["key_frame"][idx]["name"])
+        if gt_pos is not None:
+            gt_line.set_xdata(gt_pos[0])
+            gt_line.set_ydata(gt_pos[1])
+            gt_line.set_color("black")
+            gt_line.set_marker("o")
+            gt_line.set_alpha(1.0)
     return line, gt_line
 
 
