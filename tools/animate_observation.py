@@ -86,10 +86,10 @@ if gt_tf is not None:
         sys.exit(1)
 
     def tf2mat(tf):
-        re = numpy.eye(4)
-        re[0, 3], re[1, 3], re[2, 3] = tf[0], tf[1], tf[2]
-        re[:3, :3] = R.from_quat(tf[3:]).as_matrix()
-        return re
+        ret = numpy.eye(4)
+        ret[0, 3], ret[1, 3], ret[2, 3] = tf[0], tf[1], tf[2]
+        ret[:3, :3] = R.from_quat(tf[3:]).as_matrix()
+        return ret
 
     def mat2tf(mat):
         tl = [mat[0, 3], mat[1, 3], mat[2, 3]]

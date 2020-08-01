@@ -784,6 +784,7 @@ void LoopClosing::ExportPose(const std::string& out_path)
         std::string name;
         std::vector<float> tf;
         std::unordered_map<type_pt_id, std::pair<float, float>> points;
+        std::unordered_map<type_pt_id, std::pair<float, float>> points_orig;
     };
     struct PtInto
     {
@@ -834,6 +835,7 @@ void LoopClosing::ExportPose(const std::string& out_path)
 
         const std::vector<MapPoint*> pts_3d = frame->GetMapPointMatches();
         const std::vector<cv::KeyPoint> &pts_2d = frame->mvKeysUn;
+        const std::vector<cv::KeyPoint> &pts_2d_orig = frame->mvKeys;
         for (std::size_t i = 0u; i < pts_3d.size(); ++i)
         {
             if (pts_3d[i] != nullptr)
@@ -846,6 +848,7 @@ void LoopClosing::ExportPose(const std::string& out_path)
                 }
                 pts[pts_3d[i]->mnId].seen_in.push(frame->mnId);
                 kf_info.points[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d[i].pt.x, pts_2d[i].pt.y);
+                kf_info.points_orig[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d_orig[i].pt.x, pts_2d_orig[i].pt.y);
             }
         }
 
@@ -892,6 +895,11 @@ void LoopClosing::ExportPose(const std::string& out_path)
         for (const auto& pt : kf.second.points)
         {
             root["key_frame"][kf.first]["has"][pt.first] = std::vector<float>{
+                pt.second.first, pt.second.second};
+        }
+        for (const auto& pt : kf.second.points_orig)
+        {
+            root["key_frame"][kf.first]["px"][pt.first] = std::vector<float>{
                 pt.second.first, pt.second.second};
         }
     }
