@@ -19,3 +19,5 @@ RUN useradd -m usr && echo "usr:usr" | chpasswd && usermod -aG sudo usr && \
     runuser -l usr -c "echo \"if [[ -d '/home/usr/proj' ]] ; then cd ~/proj ; else cd ~; fi\" >> /home/usr/.bashrc" && \
     runuser -l usr -c "echo \"export CC=/usr/bin/clang\" >> /home/usr/.bashrc" && \
     runuser -l usr -c "echo \"export CXX=/usr/bin/clang++\" >> /home/usr/.bashrc"
+
+RUN echo "#!/bin/bash\n/opt/LDSO/bin/run_dso_tum_mono preset=0 files=/mnt/data/images.zip vignette=/mnt/data/vignette.png calib=/mnt/data/camera.txt gamma=/mnt/data/pcalib.txt" >> /opt/LD\SO/bin/proc.sh && chmod +x /opt/LDSO/bin/proc.sh
