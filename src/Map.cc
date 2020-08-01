@@ -130,4 +130,20 @@ void Map::clear()
     mvpKeyFrameOrigins.clear();
 }
 
+Map::~Map()
+{
+    std::cout << "in map were " << mspMapPoints.size() << " (" << std::accumulate(
+            mspMapPoints.begin(), mspMapPoints.end(), 0U,
+            [](std::size_t s, const auto& i)->std::size_t{return s+(i != nullptr ? 1U : 0U);})
+        << " valid) MapPoints." << std::endl;
+    std::cout << "in map were " << mspKeyFrames.size() << " (" << std::accumulate(
+            mspKeyFrames.begin(), mspKeyFrames.end(), 0U,
+            [](std::size_t s, const auto& i)->std::size_t{return s+(i != nullptr ? 1U : 0U);})
+        << " valid) KeyFrames." << std::endl;
+    std::cout << "in map were " << mvpReferenceMapPoints.size() << " (" << std::accumulate(
+            mvpReferenceMapPoints.begin(), mvpReferenceMapPoints.end(), 0U,
+            [](std::size_t s, const auto& i)->std::size_t{return s+(i != nullptr ? 1U : 0U);})
+        << " valid) ReferenceMapPoints." << std::endl;
+}
+
 } //namespace ORB_SLAM

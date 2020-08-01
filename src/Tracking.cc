@@ -259,8 +259,8 @@ cv::Mat Tracking::GrabImageMonocular(const cv::Mat &im, const double &timestamp)
         mCurrentFrame = Frame(mImGray,timestamp,mpIniORBextractor,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
     else
         mCurrentFrame = Frame(mImGray,timestamp,mpORBextractorLeft,mpORBVocabulary,mK,mDistCoef,mbf,mThDepth);
-
     mCurrentFrame.SetName(msNextFrameName);
+
     Track();
 
     return mCurrentFrame.mTcw.clone();
@@ -571,6 +571,7 @@ void Tracking::MonocularInitialization()
         if(mCurrentFrame.mvKeys.size()>100)
         {
             mInitialFrame = Frame(mCurrentFrame);
+            mInitialFrame.SetName(msNextFrameName);
             mLastFrame = Frame(mCurrentFrame);
             mvbPrevMatched.resize(mCurrentFrame.mvKeysUn.size());
             for(size_t i=0; i<mCurrentFrame.mvKeysUn.size(); i++)

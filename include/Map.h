@@ -24,10 +24,8 @@
 #include "MapPoint.h"
 #include "KeyFrame.h"
 #include <set>
-
+#include <numeric>
 #include <mutex>
-
-
 
 namespace ORB_SLAM2
 {
@@ -39,6 +37,7 @@ class Map
 {
 public:
     Map();
+    ~Map();
 
     void AddKeyFrame(KeyFrame* pKF);
     void AddMapPoint(MapPoint* pMP);
