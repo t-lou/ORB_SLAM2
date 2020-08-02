@@ -63,7 +63,7 @@ public:
 
     ~LoopClosing();
 
-    void ExportPose(const std::string& out_path);
+    void ExportPose(const std::string& out_path, const bool use_map);
 
     void SetTracker(Tracking* pTracker);
 

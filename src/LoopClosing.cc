@@ -774,7 +774,7 @@ bool LoopClosing::isFinished()
 }
 
 
-void LoopClosing::ExportPose(const std::string& out_path)
+void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
 {
 
     using type_kf_id = decltype(KeyFrame::mnId);
@@ -789,28 +789,27 @@ void LoopClosing::ExportPose(const std::string& out_path)
     struct PtInto
     {
         std::vector<float> pos;
-        std::queue<type_kf_id> seen_in;
+        std::unordered_set<type_kf_id> seen_in;
         type_kf_id ref_id;
     };
-    struct Intr
-    {
-        float fx = -1.0f;
-        float fy = -1.0f;
-        float cx = -1.0f;
-        float cy = -1.0f;
-    } intr;
 
-    std::unordered_map<type_kf_id, KfInfo> kfs;
-    std::unordered_map<type_pt_id, PtInto> pts;
-
-    auto visit = [&kfs,&pts,&intr](KeyFrame* frame) -> void
+    struct ExportData
     {
-        if (kfs.find(frame->mnId) != kfs.end())
+        struct Intr
         {
-            std::cout << "frame with id " << frame->mnId << std::endl;
-            return;
-        }
+            float fx = -1.0f;
+            float fy = -1.0f;
+            float cx = -1.0f;
+            float cy = -1.0f;
+        } intr;
 
+        std::unordered_map<type_kf_id, KfInfo> kfs;
+
+        std::unordered_map<type_pt_id, PtInto> pts;
+    } export_data;
+
+    auto create_kf_itself = [](KeyFrame* frame) -> KfInfo
+    {
         KfInfo kf_info;
 
         kf_info.name = frame->GetName();
@@ -833,66 +832,123 @@ void LoopClosing::ExportPose(const std::string& out_path)
         kf_info.tf[4] = q.y();
         kf_info.tf[5] = q.z();
         kf_info.tf[6] = q.w();
+        return kf_info;
+    };
 
+    auto connect_kf_pt = [&export_data](KeyFrame* frame, KfInfo &kf_info) -> void
+    {
         const std::vector<MapPoint*> pts_3d = frame->GetMapPointMatches();
         const std::vector<cv::KeyPoint> &pts_2d = frame->mvKeysUn;
         const std::vector<cv::KeyPoint> &pts_2d_orig = frame->mvKeys;
         for (std::size_t i = 0u; i < pts_3d.size(); ++i)
         {
-            if (pts_3d[i] != nullptr)
+            if (pts_3d[i] != nullptr && !pts_3d[i]->isBad())
             {
-                if (pts.find(pts_3d[i]->mnId) == pts.end())
-                {
-                    cv::Mat pos = pts_3d[i]->GetWorldPos();
-                    pts[pts_3d[i]->mnId] = PtInto{
-                        std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
-                        std::queue<type_kf_id>{},
-                        pts_3d[i]->GetReferenceKeyFrame()->mnId
-                    };
-                }
-                pts[pts_3d[i]->mnId].seen_in.push(frame->mnId);
+                export_data.pts[pts_3d[i]->mnId].seen_in.insert(frame->mnId);
                 kf_info.points[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d[i].pt.x, pts_2d[i].pt.y);
                 kf_info.points_orig[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d_orig[i].pt.x, pts_2d_orig[i].pt.y);
             }
         }
-
-        kfs[frame->mnId] = kf_info;
-
-        if (intr.fx < 0.0f)
-        {
-            intr.fx = frame->fx;
-            intr.fy = frame->fy;
-            intr.cx = frame->cx;
-            intr.cy = frame->cy;
-        }
     };
 
-    std::unordered_set<type_kf_id> visited;
-    std::queue<KeyFrame*> to_visit;
-    visited.insert(mpCurrentKF->mnId);
-    to_visit.push(mpCurrentKF);
-
-    while (!to_visit.empty())
+    auto visit = [&export_data,create_kf_itself,connect_kf_pt](KeyFrame* frame) -> void
     {
-        std::queue<KeyFrame*> next;
-        while (!to_visit.empty())
+        if (export_data.kfs.find(frame->mnId) != export_data.kfs.end())
         {
-            visit(to_visit.front());
-            for (KeyFrame* frame: to_visit.front()->GetVectorCovisibleKeyFrames())
+            std::cout << "frame with id " << frame->mnId << std::endl;
+            return;
+        }
+
+        KfInfo kf_info = create_kf_itself(frame);
+        for (MapPoint* pt : frame->GetMapPointMatches())
+        {
+            if (pt != nullptr && !pt->isBad() && export_data.pts.find(pt->mnId) == export_data.pts.end())
             {
-                if (frame != nullptr && visited.find(frame->mnId) == visited.end())
+                cv::Mat pos = pt->GetWorldPos();
+                export_data.pts[pt->mnId] = PtInto{
+                    std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
+                    std::unordered_set<type_kf_id>{}, // filled in connect_kf_pt
+                    pt->GetReferenceKeyFrame()->mnId
+                };
+            }
+        }
+        connect_kf_pt(frame, kf_info);
+        export_data.kfs[frame->mnId] = kf_info;
+
+        if (export_data.intr.fx < 0.0f)
+        {
+            export_data.intr.fx = frame->fx;
+            export_data.intr.fy = frame->fy;
+            export_data.intr.cx = frame->cx;
+            export_data.intr.cy = frame->cy;
+        }
+    };
+    // end of callback and data container 
+
+    if (use_map)
+    {
+        for (MapPoint* mark : mpMap->GetAllMapPoints())
+        {
+            if (mark != nullptr)
+            {
+                if (export_data.pts.find(mark->mnId) == export_data.pts.end())
                 {
-                    visited.insert(frame->mnId);
-                    next.push(frame);
+                    cv::Mat pos = mark->GetWorldPos();
+                    export_data.pts[mark->mnId] = PtInto{
+                        std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
+                        std::unordered_set<type_kf_id>{}, // filled in connect_kf_pt
+                        mark->GetReferenceKeyFrame()->mnId
+                    };
                 }
             }
-            to_visit.pop();
         }
-        to_visit = next;
+        for (KeyFrame* kf : mpMap->GetAllKeyFrames())
+        {
+            if (kf != nullptr)
+            {
+                KfInfo kf_info = create_kf_itself(kf);
+                connect_kf_pt(kf, kf_info);
+                export_data.kfs[kf->mnId] = kf_info;
+
+                if (export_data.intr.fx < 0.0f)
+                {
+                    export_data.intr.fx = kf->fx;
+                    export_data.intr.fy = kf->fy;
+                    export_data.intr.cx = kf->cx;
+                    export_data.intr.cy = kf->cy;
+                }
+            }
+        }
+    }
+    else
+    {
+        std::unordered_set<type_kf_id> visited;
+        std::queue<KeyFrame*> to_visit;
+        visited.insert(mpCurrentKF->mnId);
+        to_visit.push(mpCurrentKF);
+
+        while (!to_visit.empty())
+        {
+            std::queue<KeyFrame*> next;
+            while (!to_visit.empty())
+            {
+                visit(to_visit.front());
+                for (KeyFrame* frame: to_visit.front()->GetVectorCovisibleKeyFrames())
+                {
+                    if (frame != nullptr && visited.find(frame->mnId) == visited.end())
+                    {
+                        visited.insert(frame->mnId);
+                        next.push(frame);
+                    }
+                }
+                to_visit.pop();
+            }
+            to_visit = next;
+        }
     }
 
     YAML::Node root;
-    for (const auto& kf: kfs)
+    for (const auto& kf: export_data.kfs)
     {
         root["key_frame"][kf.first]["name"] = kf.second.name;
         root["key_frame"][kf.first]["tf"] = kf.second.tf;
@@ -907,21 +963,18 @@ void LoopClosing::ExportPose(const std::string& out_path)
                 pt.second.first, pt.second.second};
         }
     }
-    for (auto& point: pts)
+    for (auto& point: export_data.pts)
     {
         root["mark"][point.first]["pos"] = point.second.pos;
         root["mark"][point.first]["ref"] = point.second.ref_id;
-        while (!point.second.seen_in.empty())
-        {
-            root["mark"][point.first]["in"].push_back(point.second.seen_in.front());
-            point.second.seen_in.pop();
-        }
+        root["mark"][point.first]["in"] = std::vector<type_kf_id>(
+            point.second.seen_in.begin(), point.second.seen_in.end());
     }
 
-    root["intrinsics"]["fx"] = intr.fx;
-    root["intrinsics"]["fy"] = intr.fy;
-    root["intrinsics"]["cx"] = intr.cx;
-    root["intrinsics"]["cy"] = intr.cy;
+    root["intrinsics"]["fx"] = export_data.intr.fx;
+    root["intrinsics"]["fy"] = export_data.intr.fy;
+    root["intrinsics"]["cx"] = export_data.intr.cx;
+    root["intrinsics"]["cy"] = export_data.intr.cy;
 
     std::ofstream out(out_path);
     out.precision(std::numeric_limits<float>::max_digits10);
@@ -930,9 +983,11 @@ void LoopClosing::ExportPose(const std::string& out_path)
 
 LoopClosing::~LoopClosing()
 {
-    ExportPose("/tmp/observation_noba.yaml");
+    ExportPose("/tmp/observation_noba.yaml", false);
+    ExportPose("/tmp/map_noba.yaml", true);
     RunGlobalBundleAdjustment(mpCurrentKF->mnId);
-    ExportPose("/tmp/observation_ba.yaml");
+    ExportPose("/tmp/observation_ba.yaml", false);
+    ExportPose("/tmp/map_ba.yaml", true);
 }
 
 
