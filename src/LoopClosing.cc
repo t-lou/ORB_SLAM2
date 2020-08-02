@@ -790,6 +790,7 @@ void LoopClosing::ExportPose(const std::string& out_path)
     {
         std::vector<float> pos;
         std::queue<type_kf_id> seen_in;
+        type_kf_id ref_id;
     };
     struct Intr
     {
@@ -843,8 +844,11 @@ void LoopClosing::ExportPose(const std::string& out_path)
                 if (pts.find(pts_3d[i]->mnId) == pts.end())
                 {
                     cv::Mat pos = pts_3d[i]->GetWorldPos();
-                    pts[pts_3d[i]->mnId] = PtInto{std::vector<float>{
-                        pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)}};
+                    pts[pts_3d[i]->mnId] = PtInto{
+                        std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
+                        std::queue<type_kf_id>{},
+                        pts_3d[i]->GetReferenceKeyFrame()->mnId
+                    };
                 }
                 pts[pts_3d[i]->mnId].seen_in.push(frame->mnId);
                 kf_info.points[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d[i].pt.x, pts_2d[i].pt.y);
@@ -906,6 +910,7 @@ void LoopClosing::ExportPose(const std::string& out_path)
     for (auto& point: pts)
     {
         root["mark"][point.first]["pos"] = point.second.pos;
+        root["mark"][point.first]["ref"] = point.second.ref_id;
         while (!point.second.seen_in.empty())
         {
             root["mark"][point.first]["in"].push_back(point.second.seen_in.front());
