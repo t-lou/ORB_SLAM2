@@ -786,11 +786,12 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
         std::unordered_map<type_pt_id, std::pair<float, float>> points;
         std::unordered_map<type_pt_id, std::pair<float, float>> points_orig;
     };
-    struct PtInto
+    struct PtInfo
     {
         std::vector<float> pos;
         std::unordered_set<type_kf_id> seen_in;
         type_kf_id ref_id;
+        std::unordered_set<type_kf_id> seen_in_by_MapPoint;
     };
 
     struct ExportData
@@ -805,7 +806,7 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
 
         std::unordered_map<type_kf_id, KfInfo> kfs;
 
-        std::unordered_map<type_pt_id, PtInto> pts;
+        std::unordered_map<type_pt_id, PtInfo> pts;
     } export_data;
 
     auto create_kf_itself = [](KeyFrame* frame) -> KfInfo
@@ -865,10 +866,11 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
             if (pt != nullptr && !pt->isBad() && export_data.pts.find(pt->mnId) == export_data.pts.end())
             {
                 cv::Mat pos = pt->GetWorldPos();
-                export_data.pts[pt->mnId] = PtInto{
+                export_data.pts[pt->mnId] = PtInfo{
                     std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
                     std::unordered_set<type_kf_id>{}, // filled in connect_kf_pt
-                    pt->GetReferenceKeyFrame()->mnId
+                    pt->GetReferenceKeyFrame()->mnId,
+                    pt->GetObsKfIds()
                 };
             }
         }
@@ -894,10 +896,11 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
                 if (export_data.pts.find(mark->mnId) == export_data.pts.end())
                 {
                     cv::Mat pos = mark->GetWorldPos();
-                    export_data.pts[mark->mnId] = PtInto{
+                    export_data.pts[mark->mnId] = PtInfo{
                         std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
                         std::unordered_set<type_kf_id>{}, // filled in connect_kf_pt
-                        mark->GetReferenceKeyFrame()->mnId
+                        mark->GetReferenceKeyFrame()->mnId,
+                        mark->GetObsKfIds()
                     };
                 }
             }
@@ -946,6 +949,14 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
             to_visit = next;
         }
     }
+    int counter{0};
+    for (const auto & pt : export_data.pts){
+        if(pt.second.seen_in_by_MapPoint!=pt.second.seen_in){
+            std::cout << "inconsistent observations of landmark: " << pt.first << std::endl;
+            counter++;
+        }
+    }
+    std::cout << "Summary:" << counter << "/" << export_data.pts.size() << " are inconsistent in total." << std::endl;
 
     YAML::Node root;
     for (const auto& kf: export_data.kfs)
@@ -969,6 +980,8 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
         root["mark"][point.first]["ref"] = point.second.ref_id;
         root["mark"][point.first]["in"] = std::vector<type_kf_id>(
             point.second.seen_in.begin(), point.second.seen_in.end());
+        root["mark"][point.first]["in_by_MapPoint"] = std::vector<type_kf_id>(
+            point.second.seen_in_by_MapPoint.begin(), point.second.seen_in_by_MapPoint.end());
     }
 
     root["intrinsics"]["fx"] = export_data.intr.fx;

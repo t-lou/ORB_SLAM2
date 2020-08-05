@@ -416,6 +416,19 @@ int MapPoint::PredictScale(const float &currentDist, Frame* pF)
     return nScale;
 }
 
+KFIDs MapPoint::GetObsKfIds() const
+{
+    KFIDs obs_kfids;
+    for (const auto obs : mObservations){
+        if (obs_kfids.count(obs.first->mnId)==0){
+            obs_kfids.insert(obs.first->mnId);
+        }
+    }
+    if (obs_kfids.empty()){
+        std::cout << "No keyframe found for current map point." << std::endl;
+    }
+    return obs_kfids;
+}
 
 
 } //namespace ORB_SLAM

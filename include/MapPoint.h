@@ -27,6 +27,7 @@
 
 #include<opencv2/core/core.hpp>
 #include<mutex>
+#include<unordered_set>
 
 namespace ORB_SLAM2
 {
@@ -34,7 +35,7 @@ namespace ORB_SLAM2
 class KeyFrame;
 class Map;
 class Frame;
-
+using KFIDs = std::unordered_set<long unsigned int>;
 
 class MapPoint
 {
@@ -56,6 +57,8 @@ public:
 
     int GetIndexInKeyFrame(KeyFrame* pKF);
     bool IsInKeyFrame(KeyFrame* pKF);
+
+    KFIDs GetObsKfIds() const;
 
     void SetBadFlag();
     bool isBad();
