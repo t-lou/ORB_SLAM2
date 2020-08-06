@@ -891,7 +891,7 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
     {
         for (MapPoint* mark : mpMap->GetAllMapPoints())
         {
-            if (mark != nullptr)
+            if (mark != nullptr and !mark->isBad())
             {
                 if (export_data.pts.find(mark->mnId) == export_data.pts.end())
                 {
@@ -907,7 +907,7 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
         }
         for (KeyFrame* kf : mpMap->GetAllKeyFrames())
         {
-            if (kf != nullptr)
+            if (kf != nullptr and !kf->isBad())
             {
                 KfInfo kf_info = create_kf_itself(kf);
                 connect_kf_pt(kf, kf_info);
