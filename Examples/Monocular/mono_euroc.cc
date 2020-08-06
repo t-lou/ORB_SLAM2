@@ -24,6 +24,9 @@
 #include<fstream>
 #include<chrono>
 #include<unistd.h>
+#include<regex>
+#include<experimental/filesystem>
+
 
 #include<opencv2/core/core.hpp>
 
@@ -31,21 +34,21 @@
 
 using namespace std;
 
-void LoadImages(const string &strImagePath, const string &strPathTimes,
+void LoadImages(const string &strImagePath, const string &,
                 vector<string> &vstrImages, vector<double> &vTimeStamps);
 
 int main(int argc, char **argv)
 {
-    if(argc != 5)
+    if(argc != 4)
     {
-        cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_image_folder path_to_times_file" << endl;
+        cerr << endl << "Usage: ./mono_tum path_to_vocabulary path_to_settings path_to_image_folder" << endl;
         return 1;
     }
 
     // Retrieve paths to images
     vector<string> vstrImageFilenames;
     vector<double> vTimestamps;
-    LoadImages(string(argv[3]), string(argv[4]), vstrImageFilenames, vTimestamps);
+    LoadImages(string(argv[3]), string(), vstrImageFilenames, vTimestamps);
 
     int nImages = vstrImageFilenames.size();
 
@@ -88,6 +91,7 @@ int main(int argc, char **argv)
 #endif
 
         // Pass the image to the SLAM system
+        SLAM.DefineFrameName(vstrImageFilenames[ni]);
         SLAM.TrackMonocular(im,tframe);
 
 #ifdef COMPILEDWITHC14
@@ -131,26 +135,38 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void LoadImages(const string &strImagePath, const string &strPathTimes,
+void LoadImages(const string &strImagePath, const string &,
                 vector<string> &vstrImages, vector<double> &vTimeStamps)
 {
-    ifstream fTimes;
-    fTimes.open(strPathTimes.c_str());
     vTimeStamps.reserve(5000);
     vstrImages.reserve(5000);
-    while(!fTimes.eof())
+    // while(!fTimes.eof())
+    // {
+    //     string s;
+    //     getline(fTimes,s);
+    //     if(!s.empty())
+    //     {
+    //         stringstream ss;
+    //         ss << s;
+    //         vstrImages.push_back(strImagePath + "/" + ss.str() + ".png");
+    //         double t;
+    //         ss >> t;
+    //         vTimeStamps.push_back(t/1e9);
+    //     }
+    // }
+    namespace fs = std::experimental::filesystem;
+    const std::regex pattern ("([0-9]+)");
+    for(auto& p: fs::recursive_directory_iterator(strImagePath))
     {
-        string s;
-        getline(fTimes,s);
-        if(!s.empty())
+        const std::string str = p.path().string();
+        const std::string stem = p.path().stem().string();
+        std::smatch m;
+        if (std::regex_match(stem, pattern) && std::stod(stem) > 3.6e12)
         {
-            stringstream ss;
-            ss << s;
-            vstrImages.push_back(strImagePath + "/" + ss.str() + ".png");
-            double t;
-            ss >> t;
-            vTimeStamps.push_back(t/1e9);
-
+            vstrImages.push_back(str);
+            vTimeStamps.push_back(std::stod(stem) / 1e9);
         }
     }
+    std::sort(vstrImages.begin(), vstrImages.end());
+    std::sort(vTimeStamps.begin(), vTimeStamps.end());
 }
