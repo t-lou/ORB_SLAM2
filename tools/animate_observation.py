@@ -23,7 +23,12 @@ GT = args.gt
 
 gt_tf = None
 if GT is not None and os.path.isfile(GT):
-    gt_tf = numpy.genfromtxt(GT, delimiter=" ", skip_header=3)
+    if ".csv" in GT:
+        gt_tf_raw = numpy.genfromtxt(GT, delimiter=",", skip_header=1)
+        gt_tf = gt_tf_raw[:, numpy.array([0, 1, 2, 3, 5, 6, 7, 4], dtype=int)]
+        gt_tf[:, 0] /= 1e9
+    else:
+        gt_tf = numpy.genfromtxt(GT, delimiter=" ", skip_header=3)
 
 
 def interp_tf(t0, tf0, t1, tf1, t):
@@ -55,6 +60,9 @@ def get_gt_tf(timestamp: float):
 
 def get_gt_tf_from_name(name: str):
     floats = [float(m) for m in re.findall("\d+\.\d+", name)]
+    if len(floats) == 0:
+        floats = [int(m) for m in re.findall("\d+", name)]
+        floats = [float(i) / 1e9 for i in floats if i > 1000]
     if len(floats) == 1:
         return get_gt_tf(floats[0])
     else:
