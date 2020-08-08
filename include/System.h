@@ -127,6 +127,8 @@ public:
 
     void DefineFrameName(const std::string& name) { msNextFrameName = name; }
 
+    void ExportPose(const std::string& out_path);
+
 private:
 
     // Input sensor

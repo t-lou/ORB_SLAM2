@@ -32,6 +32,9 @@
 #include<unistd.h>
 #include<thread>
 
+#include <yaml-cpp/yaml.h>
+#include <Eigen/Geometry>
+
 
 namespace ORB_SLAM2
 {
@@ -996,11 +999,11 @@ void LoopClosing::ExportPose(const std::string& out_path, const bool use_map)
 
 LoopClosing::~LoopClosing()
 {
-    ExportPose("/tmp/observation_noba.yaml", false);
-    ExportPose("/tmp/map_noba.yaml", true);
-    RunGlobalBundleAdjustment(mpCurrentKF->mnId);
-    ExportPose("/tmp/observation_ba.yaml", false);
-    ExportPose("/tmp/map_ba.yaml", true);
+    // ExportPose("/tmp/observation_noba.yaml", false);
+    // ExportPose("/tmp/map_noba.yaml", true);
+    // RunGlobalBundleAdjustment(mpCurrentKF->mnId);
+    // ExportPose("/tmp/observation_ba.yaml", false);
+    // ExportPose("/tmp/map_ba.yaml", true);
 }
 
 

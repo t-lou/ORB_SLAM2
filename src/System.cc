@@ -27,6 +27,9 @@
 #include <iomanip>
 #include <unistd.h>
 
+#include <yaml-cpp/yaml.h>
+#include <Eigen/Geometry>
+
 namespace ORB_SLAM2
 {
 
@@ -379,6 +382,163 @@ void System::SaveTrajectoryTUM(const string &filename)
     }
     f.close();
     cout << endl << "trajectory saved!" << endl;
+}
+
+void System::ExportPose(const std::string& out_path)
+{
+
+    using type_kf_id = decltype(KeyFrame::mnId);
+    using type_pt_id = decltype(KeyFrame::mnId);
+    struct KfInfo
+    {
+        std::string name;
+        std::vector<float> tf;
+        std::unordered_map<type_pt_id, std::pair<float, float>> points;
+        std::unordered_map<type_pt_id, std::pair<float, float>> points_orig;
+    };
+    struct PtInfo
+    {
+        std::vector<float> pos;
+        std::unordered_set<type_kf_id> seen_in;
+        type_kf_id ref_id;
+        std::unordered_set<type_kf_id> seen_in_by_MapPoint;
+    };
+
+    struct ExportData
+    {
+        struct Intr
+        {
+            float fx = -1.0f;
+            float fy = -1.0f;
+            float cx = -1.0f;
+            float cy = -1.0f;
+        } intr;
+
+        std::unordered_map<type_kf_id, KfInfo> kfs;
+
+        std::unordered_map<type_pt_id, PtInfo> pts;
+    } export_data;
+
+    auto create_kf_itself = [](KeyFrame* frame) -> KfInfo
+    {
+        KfInfo kf_info;
+
+        kf_info.name = frame->GetName();
+
+        kf_info.tf.resize(7);
+        cv::Mat tf = frame->GetPose();
+        kf_info.tf[0] = tf.at<float>(0, 3);
+        kf_info.tf[1] = tf.at<float>(1, 3);
+        kf_info.tf[2] = tf.at<float>(2, 3);
+        Eigen::Matrix3f rot;
+        for (int i = 0; i < 3; ++i)
+        {
+            for (int j = 0; j < 3; ++j)
+            {
+                rot(i, j) = tf.at<float>(i, j);
+            }
+        }
+        Eigen::Quaternionf q(rot);
+        kf_info.tf[3] = q.x();
+        kf_info.tf[4] = q.y();
+        kf_info.tf[5] = q.z();
+        kf_info.tf[6] = q.w();
+        return kf_info;
+    };
+
+    auto connect_kf_pt = [&export_data](KeyFrame* frame, KfInfo &kf_info) -> void
+    {
+        const std::vector<MapPoint*> pts_3d = frame->GetMapPointMatches();
+        const std::vector<cv::KeyPoint> &pts_2d = frame->mvKeysUn;
+        const std::vector<cv::KeyPoint> &pts_2d_orig = frame->mvKeys;
+        for (std::size_t i = 0u; i < pts_3d.size(); ++i)
+        {
+            if (pts_3d[i] != nullptr && !pts_3d[i]->isBad())
+            {
+                export_data.pts[pts_3d[i]->mnId].seen_in.insert(frame->mnId);
+                kf_info.points[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d[i].pt.x, pts_2d[i].pt.y);
+                kf_info.points_orig[pts_3d[i]->mnId] = std::pair<float, float>(pts_2d_orig[i].pt.x, pts_2d_orig[i].pt.y);
+            }
+        }
+    };
+    // end of callback and data container 
+
+    for (MapPoint* mark : mpMap->GetAllMapPoints())
+    {
+        if (mark != nullptr and !mark->isBad())
+        {
+            if (export_data.pts.find(mark->mnId) == export_data.pts.end())
+            {
+                cv::Mat pos = mark->GetWorldPos();
+                export_data.pts[mark->mnId] = PtInfo{
+                    std::vector<float>{pos.at<float>(0), pos.at<float>(1), pos.at<float>(2)},
+                    std::unordered_set<type_kf_id>{}, // filled in connect_kf_pt
+                    mark->GetReferenceKeyFrame()->mnId,
+                    mark->GetObsKfIds()
+                };
+            }
+        }
+    }
+    for (KeyFrame* kf : mpMap->GetAllKeyFrames())
+    {
+        if (kf != nullptr and !kf->isBad())
+        {
+            KfInfo kf_info = create_kf_itself(kf);
+            connect_kf_pt(kf, kf_info);
+            export_data.kfs[kf->mnId] = kf_info;
+
+            if (export_data.intr.fx < 0.0f)
+            {
+                export_data.intr.fx = kf->fx;
+                export_data.intr.fy = kf->fy;
+                export_data.intr.cx = kf->cx;
+                export_data.intr.cy = kf->cy;
+            }
+        }
+    }
+    int counter{0};
+    for (const auto & pt : export_data.pts){
+        if(pt.second.seen_in_by_MapPoint!=pt.second.seen_in){
+            std::cout << "inconsistent observations of landmark: " << pt.first << std::endl;
+            counter++;
+        }
+    }
+    std::cout << "Summary:" << counter << "/" << export_data.pts.size() << " are inconsistent in total." << std::endl;
+
+    YAML::Node root;
+    for (const auto& kf: export_data.kfs)
+    {
+        root["key_frame"][kf.first]["name"] = kf.second.name;
+        root["key_frame"][kf.first]["tf"] = kf.second.tf;
+        for (const auto& pt : kf.second.points)
+        {
+            root["key_frame"][kf.first]["has"][pt.first] = std::vector<float>{
+                pt.second.first, pt.second.second};
+        }
+        for (const auto& pt : kf.second.points_orig)
+        {
+            root["key_frame"][kf.first]["px"][pt.first] = std::vector<float>{
+                pt.second.first, pt.second.second};
+        }
+    }
+    for (auto& point: export_data.pts)
+    {
+        root["mark"][point.first]["pos"] = point.second.pos;
+        root["mark"][point.first]["ref"] = point.second.ref_id;
+        root["mark"][point.first]["in"] = std::vector<type_kf_id>(
+            point.second.seen_in.begin(), point.second.seen_in.end());
+        root["mark"][point.first]["in_by_MapPoint"] = std::vector<type_kf_id>(
+            point.second.seen_in_by_MapPoint.begin(), point.second.seen_in_by_MapPoint.end());
+    }
+
+    root["intrinsics"]["fx"] = export_data.intr.fx;
+    root["intrinsics"]["fy"] = export_data.intr.fy;
+    root["intrinsics"]["cx"] = export_data.intr.cx;
+    root["intrinsics"]["cy"] = export_data.intr.cy;
+
+    std::ofstream out(out_path);
+    out.precision(std::numeric_limits<float>::max_digits10);
+    out << root;
 }
 
 

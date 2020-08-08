@@ -38,9 +38,6 @@
 #include <limits>
 #include "Thirdparty/g2o/g2o/types/types_seven_dof_expmap.h"
 
-#include <yaml-cpp/yaml.h>
-#include <Eigen/Geometry>
-
 namespace ORB_SLAM2
 {
 

@@ -14,3 +14,14 @@ target_link_libraries(vis_3d
   GL GLEW GLU glut glfw
   yaml-cpp
 )
+
+add_executable(vis_traj compare_traj.cc)
+target_link_libraries(vis_traj 
+  GL GLEW GLU glut glfw
+)
+
+add_executable(vis_kf compare_kf.cc)
+target_link_libraries(vis_kf 
+  GL GLEW GLU glut glfw
+  yaml-cpp
+)
